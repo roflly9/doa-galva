@@ -1,57 +1,64 @@
 import streamlit as st
 import os
 
-# Daftar Nama Staf Galva Manado (Urutan Tetap)
-staf = [
+# Nama file untuk menyimpan antrean di server Streamlit
+QUEUE_FILE = "antrean_doa_galva.txt"
+
+# Urutan tetap staf Galva Manado
+staf_awal = [
     "David", "Endra", "Eric", "Gerald", "Nofri", 
     "Ricky", "Roflly", "Romasta", "Sendhy", "Steven", 
     "Valentine", "Waldy", "Yulisfer"
 ]
 
-INDEX_FILE = "last_index.txt"
+def muat_antrean():
+    if not os.path.exists(QUEUE_FILE):
+        return staf_awal
+    with open(QUEUE_FILE, "r") as f:
+        return [line.strip() for line in f.readlines() if line.strip()]
 
-def ambil_index():
-    if not os.path.exists(INDEX_FILE):
-        return 0
-    with open(INDEX_FILE, "r") as f:
-        return int(f.read().strip())
-
-def simpan_index(idx):
-    with open(INDEX_FILE, "w") as f:
-        f.write(str(idx))
+def simpan_antrean(daftar):
+    with open(QUEUE_FILE, "w") as f:
+        for nama in daftar:
+            f.write(nama + "\n")
 
 st.set_page_config(page_title="Doa Pagi Galva", page_icon="🙏")
-
 st.title("🙏 Aplikasi Doa Galva Manado")
 
-# Ambil urutan saat ini
-current_idx = ambil_index()
-petugas = staf[current_idx]
+# Ambil antrean saat ini
+antrean = muat_antrean()
+petugas_skrg = antrean[0]
 
-# Tampilan utama
 st.subheader("Petugas Hari Ini:")
-st.info(f"✨ **{petugas}** ✨")
+st.info(f"✨ **{petugas_skrg}** ✨")
 
+# --- FORM UTAMA ---
 with st.form("doa_form"):
     ayat = st.text_input("Masukkan Ayat Alkitab yang dibaca:")
     submit = st.form_submit_button("Selesai Berdoa & Update Urutan")
     
     if submit:
         if ayat:
-            # Hitung urutan berikutnya (jika sudah Yulisfer, balik ke David)
-            next_idx = (current_idx + 1) % len(staf)
-            simpan_index(next_idx)
-            
-            st.success(f"Terima kasih {petugas}!")
-            st.write(f"Ayat hari ini: *{ayat}*")
-            st.write(f"Jadwal berikutnya: **{staf[next_idx]}**")
-            
-            # Berikan tombol untuk refresh halaman
-            if st.button("OK, Lanjutkan"):
-                st.rerun()
+            # Pindahkan ke urutan terakhir hanya jika sudah berdoa
+            orang_selesai = antrean.pop(0)
+            antrean.append(orang_selesai)
+            simpan_antrean(antrean)
+            st.success(f"Terima kasih {orang_selesai}!")
+            st.rerun()
         else:
             st.error("Mohon isi ayat Alkitab terlebih dahulu.")
 
-# Informasi Urutan (Opsional)
+# --- TOMBOL SKIP (JIKA TERLAMBAT) ---
+st.divider()
+st.write("⚠️ **Petugas Terlambat?**")
+if st.button(f"Lewati {petugas_skrg} (Tetap Bertugas Besok)"):
+    if len(antrean) > 1:
+        # Tukar posisi 1 dan 2 agar yang terlambat muncul lagi besok
+        antrean[0], antrean[1] = antrean[1], antrean[0]
+        simpan_antrean(antrean)
+        st.warning(f"{petugas_skrg} digeser. Hari ini digantikan oleh {antrean[0]}.")
+        st.rerun()
+
 with st.expander("Lihat Antrean Lengkap"):
-    st.write(" -> ".join(staf))
+    for i, nama in enumerate(antrean):
+        st.write(f"{i+1}. {nama}")
